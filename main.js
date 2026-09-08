@@ -438,6 +438,7 @@ function initCookieConsent() {
   const dialog = document.getElementById('cookie-banner');
   const acceptBtn = document.getElementById('cookie-accept');
   const rejectBtn = document.getElementById('cookie-reject');
+  const closeBtn = document.getElementById('cookie-close');
   const settingsBtn = document.getElementById('cookie-settings');
 
   if (!overlay || !dialog || !acceptBtn || !rejectBtn) return;
@@ -519,6 +520,14 @@ function initCookieConsent() {
     saveConsent('rejected');
     closeModal();
   });
+
+  // La X equivale a "rifiuta i cookie non necessari": registra comunque una scelta
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      if (!readConsent()) saveConsent('rejected');
+      closeModal();
+    });
+  }
 
   // Riapri le preferenze dal footer
   if (settingsBtn) {
