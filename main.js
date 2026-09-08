@@ -16,9 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Parallax ──
   initParallax();
   
-  // ── Gallery ──
-  initGallery();
-  
   // ── Lightbox ──
   initLightbox();
   
@@ -30,6 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // ── Active Section Tracking ──
   initSectionTracking();
+  
+  // ── Cookie Consent ──
+  initCookieConsent();
 });
 
 
@@ -158,48 +158,6 @@ function initParallax() {
       ticking = true;
     }
   }, { passive: true });
-}
-
-
-/* ═══════════════════════════════════════════
-   GALLERY — Filtri per Categoria
-   ═══════════════════════════════════════════ */
-function initGallery() {
-  const filterBtns = document.querySelectorAll('.filter-btn');
-  const items = document.querySelectorAll('.gallery-item');
-  
-  filterBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      // Update active filter button
-      filterBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      
-      const filter = btn.dataset.filter;
-      
-      // Filter items with staggered animation
-      let visibleIndex = 0;
-      
-      items.forEach((item, i) => {
-        if (filter === 'all' || item.dataset.category === filter) {
-          item.classList.remove('hidden');
-          item.style.transitionDelay = `${visibleIndex * 0.06}s`;
-          
-          // Re-trigger reveal animation
-          item.classList.remove('revealed');
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              item.classList.add('revealed');
-            });
-          });
-          
-          visibleIndex++;
-        } else {
-          item.classList.add('hidden');
-          item.style.transitionDelay = '0s';
-        }
-      });
-    });
-  });
 }
 
 
@@ -467,4 +425,116 @@ function showFormFeedback(message, type) {
     feedback.style.transition = 'opacity 0.3s ease';
     setTimeout(() => feedback.remove(), 300);
   }, 5000);
+}
+
+/* ═══════════════════════════════════════════
+   COOKIE CONSENT
+   ═══════════════════════════════════════════ */
+function initCookieConsent() {
+  const STORAGE_KEY = 'seremet-cookie-consent';
+  const CONSENT_VERSION = 1; // bump per invalidare i consensi precedenti
+
+  const overlay = document.getElementById('cookie-overlay');
+  const dialog = document.getElementById('cookie-banner');
+  const acceptBtn = document.getElementById('cookie-accept');
+  const rejectBtn = document.getElementById('cookie-reject');
+  const settingsBtn = document.getElementById('cookie-settings');
+
+  if (!overlay || !dialog || !acceptBtn || !rejectBtn) return;
+
+  let lastFocused = null;
+
+  function readConsent() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || data.version !== CONSENT_VERSION) return null;
+      if (data.status !== 'accepted' && data.status !== 'rejected') return null;
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveConsent(status) {
+    const data = { status: status, version: CONSENT_VERSION, date: new Date().toISOString() };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) { /* storage non disponibile: la scelta vale solo per questa sessione */ }
+    applyConsent(status);
+    document.dispatchEvent(new CustomEvent('cookieconsent', { detail: data }));
+  }
+
+  function applyConsent(status) {
+    // I cookie/script analitici vanno attivati solo qui, con consenso 'accepted'.
+    if (status === 'accepted') {
+      // loadAnalytics();
+    }
+  }
+
+  function openModal() {
+    lastFocused = document.activeElement;
+    overlay.classList.remove('hidden');
+    document.body.classList.add('cookie-lock');
+    setTimeout(() => acceptBtn.focus(), 50);
+    document.addEventListener('keydown', onKeydown);
+  }
+
+  function closeModal() {
+    overlay.classList.add('hidden');
+    document.body.classList.remove('cookie-lock');
+    document.removeEventListener('keydown', onKeydown);
+    if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+  }
+
+  function onKeydown(e) {
+    // Nessuna chiusura senza scelta: Esc non chiude la prima volta.
+    if (e.key === 'Escape' && readConsent()) {
+      closeModal();
+      return;
+    }
+    if (e.key === 'Tab') {
+      // Focus trap sui pulsanti del dialog
+      const focusables = dialog.querySelectorAll('button, a[href]');
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+
+  acceptBtn.addEventListener('click', () => {
+    saveConsent('accepted');
+    closeModal();
+  });
+
+  rejectBtn.addEventListener('click', () => {
+    saveConsent('rejected');
+    closeModal();
+  });
+
+  // Riapri le preferenze dal footer
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', openModal);
+  }
+
+  // Chiusura cliccando sullo sfondo, solo se una scelta è già stata fatta
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay && readConsent()) closeModal();
+  });
+
+  const existing = readConsent();
+  if (existing) {
+    applyConsent(existing.status);
+  } else {
+    // Mostra dopo la schermata di caricamento per non sovrapporre le animazioni
+    setTimeout(openModal, 3200);
+  }
 }
